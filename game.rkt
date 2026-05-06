@@ -1,6 +1,3 @@
-
-Copy
-
 #lang racket
 (require racket/string
          racket/gui/base)
