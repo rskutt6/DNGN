@@ -11,7 +11,7 @@
 (struct room-v (name desc items monsters exits power) #:transparent)
 (struct item-v (name desc type) #:transparent)
 (struct monster-v (name hp) #:transparent)
-(struct exit-v (direction destination) #:transparent)
+(struct exit-v (direction destination key) #:transparent)
 
 (define (get-room rooms name)
   (cdr (assoc name rooms)))
@@ -86,14 +86,14 @@
 
   (define rooms (game-rooms world))
   (define start-name (car (car rooms)))
-  (game-loop rooms start-name 10))
+  (game-loop rooms start-name 10 '()))
 
 ; -----------------------------------------------
 ; GAME LOOP
 ; called when player enters new room or after an action
 ; -----------------------------------------------
 
-(define (game-loop rooms current player-power)
+(define (game-loop rooms current player-power inventory)
   (define r (get-room rooms current))
   (show-room-image current)
 
@@ -115,9 +115,17 @@
           player-power)
   (displayln "==========================================")
   (printf "  ~a\n\n" (room-v-desc r))
-  (printf "  Exits:    ~a\n" (string-join (map exit-v-direction (room-v-exits r)) " | "))
+
+  (printf "  Exits: ~a\n"
+          (string-join
+           (map (lambda (e) (exit-v-direction e))
+                (room-v-exits r))
+           " | "))
+
   (when (not (null? (room-v-items r)))
-    (printf "  Items:    ~a\n" (string-join (map item-v-name (room-v-items r)) ", ")))
+    (printf "  Items:    ~a\n"
+            (string-join (map item-v-name (room-v-items r)) ", ")))
+
   (when (not (null? (room-v-monsters r)))
     (printf "  Monsters: ~a\n"
             (string-join
@@ -127,35 +135,42 @@
                             (monster-v-hp m)))
                   (room-v-monsters r))
              ", ")))
+
+  (printf "  Inventory: ~a\n"
+          (if (null? inventory)
+              "empty"
+              (string-join (map item-v-name inventory) ", ")))
+
   (displayln "==========================================")
 
   ; ---- ITEM PICKUP PHASE ----
-  ; grab items before combat & return updated power
-  (define power-after-items
+  (define-values (power-after-items new-inventory)
     (cond
-      [(null? (room-v-items r)) player-power]
+      [(null? (room-v-items r))
+       (values player-power inventory)]
       [else
-       (displayln "Type 'take <item>' to pick up an item, 'continue' to proceed, or 'quit' to exit.")
+       (displayln "Type 'take <item>' or 'continue'")
        (display "> ")
        (define item-input (read-line))
-       (when (equal? item-input "quit") (displayln "Goodbye!") (exit))
+
        (if (and (>= (string-length item-input) 5)
                 (equal? (substring item-input 0 5) "take "))
            (let* ([item-name (substring item-input 5)]
-                  [found-item (findf (lambda (i)
-                                       (equal? (item-v-name i) item-name))
-                                     (room-v-items r))])
+                  [found-item
+                   (findf (lambda (i)
+                            (equal? (item-v-name i) item-name))
+                          (room-v-items r))])
              (if found-item
-                 (begin
-                   (printf "You picked up ~a! Power +5\n" item-name)
-                   (+ player-power 5))
-                 (begin
-                   (displayln "No such item here.")
-                   player-power)))
-           player-power)]))
+                 (values
+                  (+ player-power
+                     (if (equal? (item-v-type found-item) "weapon")
+                         5
+                         0))
+                  (cons found-item inventory))
+                 (values player-power inventory)))
+           (values player-power inventory))]))
 
   ; ---- COMBAT PHASE ----
-  ; if there's a monster, player must fight or run
   (define power-after-combat
     (if (null? (room-v-monsters r))
         power-after-items
@@ -166,9 +181,9 @@
           (display "fight or run? > ")
           (define choice (read-line))
           (when (equal? choice "quit") (displayln "Goodbye!") (exit))
+
           (cond
             ; --- RUN ---
-            ; show exits and let player flee
             [(equal? choice "run")
              (displayln "You run! Which way?")
              (for ([e (room-v-exits r)])
@@ -176,21 +191,18 @@
              (display "> ")
              (define run-dir (read-line))
 
-             ; find the matching exit
              (define run-dest #f)
              (for ([e (room-v-exits r)])
                (when (equal? (exit-v-direction e) run-dir)
                  (set! run-dest (exit-v-destination e))))
 
-             ; exit or stay if invalid
              (if run-dest
-                 (game-loop rooms run-dest power-after-items)
+                 (game-loop rooms run-dest power-after-items new-inventory)
                  (begin
                    (displayln "Can't go that way!")
-                   (game-loop rooms current power-after-items)))]
+                   (game-loop rooms current power-after-items new-inventory)))]
 
             ; --- FIGHT ---
-            ; compare power to monster hp
             [(equal? choice "fight")
              (if (>= power-after-items (string->number (monster-v-hp m)))
                  (begin
@@ -200,36 +212,39 @@
                    (displayln "You are too weak... YOU DIED!")
                    (exit)))]
 
-            ; anything else, stay and try again
+            ; --- INVALID ---
             [else
              (displayln "Type 'fight' or 'run'.")
-             (game-loop rooms current power-after-items)]))))
+             (game-loop rooms current power-after-items new-inventory)]))))
 
-  ; ---- MOVEMENT PHASE ----
-  ; let the player move to another room
+  ; ---- MOVEMENT PHASE (WITH LOCKED DOORS) ----
   (displayln "Where do you go?")
   (display "> ")
   (define input (read-line))
 
-  (cond
-    ; quit the game
-    [(equal? input "quit")
-     (displayln "Goodbye!")]
+  (define next-exit
+    (findf (lambda (e)
+             (equal? (exit-v-direction e) input))
+           (room-v-exits r)))
 
-    ; move to another room
-    [else
-     (define next-room #f)
-
-     ; look through exits to find a match
-     (for ([e (room-v-exits r)])
-       (when (equal? (exit-v-direction e) input)
-         (set! next-room (exit-v-destination e))))
-
-     ; go there or stay if invalid
-     (if next-room
-         (game-loop rooms next-room power-after-combat)
-         (begin
-           (displayln "Can't go that way.")
-           (game-loop rooms current power-after-combat)))]))
+  (if next-exit
+      (let ([required-key (exit-v-key next-exit)])
+        (if (or (not required-key)
+                (findf (lambda (i)
+                         (equal? (item-v-name i)
+                                 (if (symbol? required-key)
+                                     (symbol->string required-key)
+                                     required-key)))
+                       new-inventory))
+            (game-loop rooms
+                       (exit-v-destination next-exit)
+                       power-after-combat
+                       new-inventory)
+            (begin
+              (displayln "That door is locked.")
+              (game-loop rooms current power-after-combat new-inventory))))
+      (begin
+        (displayln "Can't go that way.")
+        (game-loop rooms current power-after-combat new-inventory))))
 
 (provide (all-defined-out))
