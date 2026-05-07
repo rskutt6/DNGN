@@ -1,5 +1,4 @@
 #lang COMP360_FinalProject
-
 (room wake
   (desc "You awake underwater, lungs full of water and yet somehow not drowning. The water is cold and silent and you can see the pale light filtering through cracks above. Something is wrong, and you need to find your way back to the surface.")
   (item rusted-dagger
@@ -49,7 +48,7 @@
   (desc "The pressure increases here. You should be dead by now, but somehow you are not. You see movement out of the corner of your eye, something large watching you.")
   (exit west maze2)
   (exit south maze3)
-  (exit north selkie-lair))
+  (exit north selkie-lair (key coral-blade)))
 
 (room selkie-lair
   (desc "A hidden chamber opens suddenly. There in front of you is a creature that would seem almost human if it were not for the mass of seal skin laying next to her.")
@@ -58,8 +57,8 @@
     (type misc))
   (power 0)
   (exit south maze4)
-  (exit north abyss))
+  (exit north abyss (key seal-skin)))
 
 (room abyss
   (desc "The dungeon falls away into an endless underwater abyss. There is no floor, and your legs are hovering treading water. The selkie approaches slowly, eyes trained on you. Whatever happens next determines if you make it to the surface.")
-  (monster deep-thing 20))
+  (monster deep-thing 50))
