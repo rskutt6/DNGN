@@ -19,7 +19,7 @@
 
 (room maze1
   (desc "Flooded stone corridors greet you, stretching in every direction. As you peer closer you notice that every inch of the walls are covered in strange markings and drawings. Something brushes your skin before you can look closer and you jump.")
-  (monster eel 25)
+  (monster eel 25 5)
   (exit south wake)
   (exit north maze2)
   (exit east maze3))
@@ -36,7 +36,7 @@
 
 (room maze3
   (desc "A narrow passage forces you sideways, fighting for your breath between jagged stones. Bubbles rise from the cracks in the wall but disappear before they reach the surface. In the rubble you spot another blade.")
-  (monster crab 15)
+  (monster crab 15 4)
   (item coral-blade
     (desc "A blade formed from coral, sturdy and sharp. Slightly magical in the way it glows.")
     (type weapon))
@@ -61,4 +61,4 @@
 
 (room abyss
   (desc "The dungeon falls away into an endless underwater abyss. There is no floor, and your legs are hovering treading water. The selkie approaches slowly, eyes trained on you. Whatever happens next determines if you make it to the surface.")
-  (monster deep-thing 50))
+  (monster deep-thing 50 10))

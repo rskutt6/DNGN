@@ -15,7 +15,7 @@ item-body : item-field*
 item-field : desc
            | type
 type : /LPAREN /"type" ID /RPAREN
-monster : /LPAREN /"monster" ID NUMBER /RPAREN
+monster : /LPAREN /"monster" ID NUMBER NUMBER? /RPAREN
 exit : /LPAREN /"exit" ID ID key? /RPAREN
 key : /LPAREN /"key" ID /RPAREN
 power : /LPAREN /"power" NUMBER /RPAREN

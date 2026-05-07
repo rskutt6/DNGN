@@ -10,11 +10,51 @@
 (struct game (rooms) #:transparent)
 (struct room-v (name desc items monsters exits power) #:transparent)
 (struct item-v (name desc type) #:transparent)
-(struct monster-v (name hp) #:transparent)
+(struct monster-v (name health power) #:transparent)
 (struct exit-v (direction destination key) #:transparent)
 
 (define (get-room rooms name)
   (cdr (assoc name rooms)))
+
+;; -----------------------------------------------
+;; COMBAT HELPER - TURN-BASED SYSTEM
+;; Returns (values final-player-health final-player-power)
+;; -----------------------------------------------
+
+(define (combat-loop player-health player-power monster)
+  (let loop ([p-health player-health]
+             [p-power player-power]
+             [m-health (monster-v-health monster)]
+             [m-power (monster-v-power monster)])
+    
+    ;; Player's turn
+    (printf "\nYour turn! You attack the ~a!\n" (monster-v-name monster))
+    (let ([damage-dealt p-power])
+      (printf "You deal ~a damage! " damage-dealt)
+      (set! m-health (- m-health damage-dealt))
+      (printf "Monster health: ~a\n" m-health))
+    
+    ;; Check if monster is dead
+    (if (<= m-health 0)
+        (begin
+          (printf "\n★ You defeated the ~a! ★\n" (monster-v-name monster))
+          (displayln "Power +5")
+          (values p-health (+ p-power 5)))
+        (begin
+          ;; Monster's turn
+          (printf "\nThe ~a attacks you!\n" (monster-v-name monster))
+          (let ([damage-taken m-power])
+            (printf "It deals ~a damage! " damage-taken)
+            (set! p-health (- p-health damage-taken))
+            (printf "Your health: ~a\n" p-health))
+          
+          ;; Check if player is dead
+          (if (<= p-health 0)
+              (begin
+                (displayln "\n✗ YOU DIED! ✗")
+                (exit))
+              ;; Continue combat
+              (loop p-health p-power m-health m-power))))))
 
 ;; -----------------------------------------------
 ;; GRAPHICS
@@ -86,14 +126,14 @@
 
   (define rooms (game-rooms world))
   (define start-name (car (car rooms)))
-  (game-loop rooms start-name 10 '()))
+  (game-loop rooms start-name 10 100 '()))
 
 ; -----------------------------------------------
 ; GAME LOOP
 ; called when player enters new room or after an action
 ; -----------------------------------------------
 
-(define (game-loop rooms current player-power inventory)
+(define (game-loop rooms current player-power player-health inventory)
   (define r (get-room rooms current))
   (show-room-image current)
 
@@ -109,10 +149,11 @@
 
   ; ---- PRINT ROOM INFO ----
   (displayln "==========================================")
-  (printf "  ~a~aPower: ~a\n"
+  (printf "  ~a~aPower: ~a | Health: ~a\n"
           (string-upcase (room-v-name r))
-          (make-string (max 1 (- 28 (string-length (room-v-name r)))) #\space)
-          player-power)
+          (make-string (max 1 (- 20 (string-length (room-v-name r)))) #\space)
+          player-power
+          player-health)
   (displayln "==========================================")
   (printf "  ~a\n\n" (room-v-desc r))
 
@@ -130,9 +171,10 @@
     (printf "  Monsters: ~a\n"
             (string-join
              (map (lambda (m)
-                    (format "~a (hp: ~a)"
+                    (format "~a (health: ~a, power: ~a)"
                             (monster-v-name m)
-                            (monster-v-hp m)))
+                            (monster-v-health m)
+                            (monster-v-power m)))
                   (room-v-monsters r))
              ", ")))
 
@@ -175,9 +217,9 @@
     (if (null? (room-v-monsters r))
         power-after-items
         (let ([m (car (room-v-monsters r))])
-          (printf "A ~a blocks your path! (hp: ~a)\n"
+          (printf "A ~a blocks your path! (health: ~a)\n"
                   (monster-v-name m)
-                  (monster-v-hp m))
+                  (monster-v-health m))
           (display "fight or run? > ")
           (define choice (read-line))
           (when (equal? choice "quit") (displayln "Goodbye!") (exit))
@@ -197,25 +239,22 @@
                  (set! run-dest (exit-v-destination e))))
 
              (if run-dest
-                 (game-loop rooms run-dest power-after-items new-inventory)
+                 (game-loop rooms run-dest power-after-items player-health new-inventory)
                  (begin
                    (displayln "Can't go that way!")
-                   (game-loop rooms current power-after-items new-inventory)))]
+                   (game-loop rooms current power-after-items player-health new-inventory)))]
 
             ; --- FIGHT ---
             [(equal? choice "fight")
-             (if (>= power-after-items (string->number (monster-v-hp m)))
-                 (begin
-                   (displayln "You defeated the monster! Power +5")
-                   (+ power-after-items 5))
-                 (begin
-                   (displayln "You are too weak... YOU DIED!")
-                   (exit)))]
+             (define-values (health-after new-power)
+               (combat-loop player-health power-after-items m))
+             (set! player-health health-after)
+             new-power]
 
             ; --- INVALID ---
             [else
              (displayln "Type 'fight' or 'run'.")
-             (game-loop rooms current power-after-items new-inventory)]))))
+             (game-loop rooms current power-after-items player-health new-inventory)]))))
 
   ; ---- MOVEMENT PHASE (WITH LOCKED DOORS) ----
   (displayln "Where do you go?")
@@ -239,12 +278,13 @@
             (game-loop rooms
                        (exit-v-destination next-exit)
                        power-after-combat
+                       player-health
                        new-inventory)
             (begin
               (displayln "That door is locked.")
-              (game-loop rooms current power-after-combat new-inventory))))
+              (game-loop rooms current power-after-combat player-health new-inventory))))
       (begin
         (displayln "Can't go that way.")
-        (game-loop rooms current power-after-combat new-inventory))))
+        (game-loop rooms current power-after-combat player-health new-inventory))))
 
 (provide (all-defined-out))

@@ -121,8 +121,15 @@
 
 ;; ---monster---
 
-(define-macro (monster NAME HP)
-  #'(monster-node (monster-v NAME HP)))
+(define-macro (monster NAME . REST)
+  (define rest-list (syntax->list #'REST))
+  (define hp (if (null? rest-list)
+                 25
+                 (string->number (syntax->datum (car rest-list)))))
+  (define power (if (< (length rest-list) 2)
+                    5
+                    (string->number (syntax->datum (cadr rest-list)))))
+  #`(monster-node (monster-v NAME #,hp #,power)))
 
 ;; ---exit---
 
