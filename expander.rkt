@@ -20,6 +20,7 @@
 (struct power-node (value) #:transparent)
 (struct type-node (value) #:transparent)
 (struct key-node (value) #:transparent)
+(struct health-node (value) #:transparent)
 
 ;; HELPER: remove surrounding quotes from strings
 
@@ -138,11 +139,17 @@
                           #'#f
                           (car (syntax->list #'REST)))])
     #'(exit-node (exit-v DIR DEST KEY))))
+(define-macro (exit DIR DEST)
+  #'(exit-node (exit-v DIR DEST)))
 
 ;; ---power---
 
 (define-macro (power N)
   #'(power-node N))
+
+;; ---health---
+(define-macro (health N)
+  #'(health-node N))
 
 ;; -----dungeon-module-begin-----
 
@@ -156,3 +163,67 @@
          (game (list (cons ROOM-NAME ROOM-ID) ...)))
        (play game-world)
        (provide game-world))))
+(define-macro (dungeon-module-begin (program STUFF ...))
+  (let ([health 100]  ; default
+        [rooms '()])
+    (for ([s (syntax->list #'(STUFF ...))])
+      (syntax-case s (health room)
+        [(health N) (set! health (syntax->datum #'N))]
+        [(room . _) (set! rooms (cons s rooms))]
+        [_ (error "Invalid top-level form")]))
+    (with-syntax ([HEALTH health]
+                  [(ROOM ...) (reverse rooms)]
+                  [(ROOM-NAMES ...) (map (lambda (r) (datum->syntax #f (cadr (syntax->list r)))) rooms)]
+                  [(ROOM-ID ...) (prefix-id "room-" (map (lambda (r) (cadr (syntax->list r))) rooms))])
+      #'(#%module-begin
+         ROOM ...
+         (define game-world (game (list (cons ROOM-NAMES ROOM-ID) ...) HEALTH))
+         (play game-world)
+         (provide game-world)))))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+           
+
+  
+  
+  
+
+  
+  
+    

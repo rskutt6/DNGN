@@ -1,5 +1,6 @@
 #lang COMP360_FinalProject
 
+(health 100) ; player starts with 100 health
 (room cave
   (desc "A dark cave dripping with water")
   (monster bat 15)
